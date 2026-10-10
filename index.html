@@ -177,7 +177,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   <div id="list"><div class="empty"><strong>尚未連線</strong>先在上方「GitHub 連線設定」填入帳號、repo 和 token。</div></div>
 
   <div class="tools"><button type="button" id="refreshBtn">重新整理</button></div>
-  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G3（10/11）</p>
+  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G5（10/11）</p>
 </div>
 
 <script>
@@ -188,6 +188,10 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   let presetClients=[], todos=[], cat="", client="", pendingDel=null, sha=null, busy=false;
   let cfg={owner:"",repo:"todo-data",token:""};
   try{const c=JSON.parse(localStorage.getItem("todoCfg")||"{}");Object.assign(cfg,c);}catch(e){}
+  const qs=new URLSearchParams(location.search);
+  const RO=qs.has("view");
+  if(qs.get("owner")) cfg.owner=qs.get("owner");
+  if(qs.get("repo")) cfg.repo=qs.get("repo");
 
   function ymd(d){const z=n=>String(n).padStart(2,"0");return d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate());}
   function dayDiff(s){const [y,m,d]=s.split("-").map(Number);const a=new Date(y,m-1,d);const t=new Date();t.setHours(0,0,0,0);return Math.round((a-t)/864e5);}
@@ -216,11 +220,13 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     const j=await r.json(); sha=j.sha;
     const d=JSON.parse(b64dec(j.content)||"{}");
     presetClients=Array.isArray(d.clients)?d.clients:[]; todos=Array.isArray(d.todos)?d.todos:[];
-    setConn("已連線 GitHub",true); render(); return d;
+    if(RO) todos=todos.filter(t=>t.category!=="私人");
+    setConn(RO?"已連線（唯讀）":"已連線 GitHub",true); render(); return d;
   }
 
   // 每次寫入：先讀最新 → 套用修改 → 存回；若同時有人改過（409）就重來一次
   async function mutate(fn,label){
+    if(RO){toast("唯讀檢視，無法修改");return false;}
     if(busy) return false; busy=true;
     try{
       for(let attempt=0;attempt<3;attempt++){
@@ -239,7 +245,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   // ---- 畫面 ----
   function itemEl(t){
     const li=document.createElement("li"); if(t.done) li.className="done";
-    const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=!!t.done;
+    const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=!!t.done; cb.disabled=RO;
     cb.setAttribute("aria-label","完成："+t.title);
     cb.addEventListener("change",async()=>{const v=cb.checked;const ok=await mutate(d=>{const x=(d.todos||[]).find(y=>y.id===t.id);if(x)x.done=v;},(v?"完成：":"取消完成：")+t.title);if(!ok)cb.checked=!v;});
     const body=document.createElement("div"); body.className="body";
@@ -249,7 +255,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     if(t.client){const c=document.createElement("span");c.textContent=t.client;meta.appendChild(c);}
     if(t.due){const n=dayDiff(t.due);const d=document.createElement("span");d.className="due"+(!t.done&&n<0?" late":!t.done&&n<=2?" soon":"");d.textContent=fmtDue(t.due)+(t.done?"":" · "+rel(n));meta.appendChild(d);}
     body.append(ti,meta);
-    const del=document.createElement("button"); del.className="del"; del.type="button"; del.textContent="刪除";
+    const del=document.createElement("button"); del.className="del"; del.type="button"; del.textContent="刪除"; del.hidden=RO;
     if(pendingDel===t.id){del.classList.add("confirm");del.textContent="確認刪除";}
     del.addEventListener("click",async()=>{
       if(pendingDel!==t.id){pendingDel=t.id;render();setTimeout(()=>{if(pendingDel===t.id){pendingDel=null;render();}},4000);return;}
@@ -364,6 +370,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     try{localStorage.setItem("todoCfg",JSON.stringify(cfg));}catch(err){toast("這個瀏覽器無法記住設定，關閉後需重填");}
     try{await load();$("setBox").open=false;toast("已連線");}catch(err){toast(err.message);}
   });
+  if(RO){$("addBox").hidden=true;const pc=document.querySelector('.chip[data-cat="私人"]');if(pc)pc.hidden=true;document.querySelector(".note").textContent="唯讀檢視：只能查看，無法新增或修改。";}
   $("sOwner").value=cfg.owner; $("sRepo").value=cfg.repo; $("sToken").value=cfg.token;
 
   document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{cat=b.dataset.cat;document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));render();}));
