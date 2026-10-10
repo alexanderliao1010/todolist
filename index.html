@@ -113,6 +113,10 @@ form>*{min-width:0}
 details.set{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 details.set summary{cursor:pointer;color:var(--muted);font-size:.9rem}
 details.set form{padding:0}
+button.stat{font:inherit;color:var(--fg);text-align:left;cursor:pointer;width:100%}
+button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent)}
+.duebar{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--surface);border:1px solid var(--accent);border-radius:10px;padding:8px 12px;font-size:.9rem}
+.duebar button{border:0;background:none;color:var(--accent);font:inherit;font-weight:700;cursor:pointer}
 .conn-ok{color:var(--accent)} .conn-bad{color:var(--late)}
 .tools{display:flex;gap:8px;justify-content:center}
 .tools button{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:6px 14px;font:inherit;font-size:.85rem;cursor:pointer}
@@ -136,9 +140,9 @@ details.set form{padding:0}
   </details>
 
   <div class="summary">
-    <div class="stat late"><b id="sLate">–</b><span>已逾期</span></div>
-    <div class="stat"><b id="sToday">–</b><span>今天到期</span></div>
-    <div class="stat"><b id="sWeek">–</b><span>7 天內</span></div>
+    <button type="button" class="stat late" data-due="late" aria-pressed="false"><b id="sLate">–</b><span>已逾期</span></button>
+    <button type="button" class="stat" data-due="today" aria-pressed="false"><b id="sToday">–</b><span>今天到期</span></button>
+    <button type="button" class="stat" data-due="week" aria-pressed="false"><b id="sWeek">–</b><span>7 天內</span></button>
   </div>
 
   <details class="add" id="addBox">
@@ -155,8 +159,8 @@ details.set form{padding:0}
       <label class="full">事項<input id="fTitle" required placeholder="例：送施工計畫書"></label>
       <label>截止日<input id="fDue" type="date" required></label>
       <label>類別<select id="fCat"><option>工程</option><option>人資</option><option>管理</option><option>私人</option></select></label>
-      <label class="full">業主／案場<input id="fClient" list="clientList" placeholder="例：硯森營造"></label>
-      <datalist id="clientList"></datalist>
+      <label class="full">業主／案場<select id="fClientSel"><option value="">（不指定）</option></select></label>
+      <label class="full" id="clientOtherWrap" hidden>新業主／案場名稱<input id="fClient" placeholder="例：硯森營造"></label>
       <button type="submit" id="addBtn">加入</button>
     </form>
   </details>
@@ -179,6 +183,8 @@ details.set form{padding:0}
 <script>
 (function(){
   const $=id=>document.getElementById(id);
+  const DEFAULT_CLIENTS=["妃鉑","耆安","燃舍","豹發力","手機王","金日昇"];
+  let dueF="";
   let presetClients=[], todos=[], cat="", client="", pendingDel=null, sha=null, busy=false;
   let cfg={owner:"",repo:"todo-data",token:""};
   try{const c=JSON.parse(localStorage.getItem("todoCfg")||"{}");Object.assign(cfg,c);}catch(e){}
@@ -258,7 +264,7 @@ details.set form{padding:0}
     const ul=document.createElement("ul"); items.forEach(t=>ul.appendChild(itemEl(t)));
     s.append(h,ul); return s;
   }
-  function allClients(){return [...new Set(presetClients.concat(todos.map(t=>t.client)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));}
+  function allClients(){return [...new Set(DEFAULT_CLIENTS.concat(presetClients,todos.map(t=>t.client)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));}
   function render(){
     const open=todos.filter(t=>!t.done); const d=t=>t.due?dayDiff(t.due):9999;
     $("sLate").textContent=open.filter(t=>d(t)<0).length;
@@ -267,13 +273,20 @@ details.set form{padding:0}
     const clients=allClients(); const sel=$("clientFilter"); const cur=sel.value;
     sel.replaceChildren(new Option("所有業主／案場",""),...clients.map(c=>new Option(c,c)));
     sel.value=clients.includes(cur)?cur:""; client=sel.value;
-    $("clientList").replaceChildren(...clients.map(c=>{const o=document.createElement("option");o.value=c;return o;}));
-    const shown=todos.filter(t=>(!cat||t.category===cat)&&(!client||t.client===client));
+    const cs=$("fClientSel"), curC=cs.value;
+    cs.replaceChildren(new Option("（不指定）",""),...clients.map(c=>new Option(c,c)),new Option("＋ 其他（自行輸入）","__other"));
+    cs.value=(curC==="__other"||clients.includes(curC))?curC:"";
+    const inDue=t=>!dueF||(!t.done&&(dueF==="late"?d(t)<0:dueF==="today"?d(t)===0:d(t)>0&&d(t)<=7));
+    const shown=todos.filter(t=>(!cat||t.category===cat)&&(!client||t.client===client)&&inDue(t));
+    document.querySelectorAll("button.stat").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.due===dueF)));
     const byDue=(a,b)=>(a.due||"9999").localeCompare(b.due||"9999");
     const o=shown.filter(t=>!t.done).sort(byDue), done=shown.filter(t=>t.done).sort((a,b)=>byDue(b,a));
     const list=$("list"); list.replaceChildren();
+    if(dueF){const bar=document.createElement("div");bar.className="duebar";const lab=document.createElement("span");lab.textContent="只顯示："+{late:"已逾期",today:"今天到期",week:"7 天內到期"}[dueF]+"（"+shown.length+" 筆）";const x=document.createElement("button");x.type="button";x.textContent="顯示全部";x.addEventListener("click",()=>{dueF="";render();});bar.append(lab,x);list.appendChild(bar);}
+    const put=html=>{const e=document.createElement("div");e.innerHTML=html;list.appendChild(e.firstChild);};
     if(!todos.length){list.innerHTML='<div class="empty"><strong>還沒有待辦事項</strong>點上方「新增待辦」加入第一筆。</div>';return;}
-    if(!shown.length){list.innerHTML='<div class="empty"><strong>這個篩選下沒有事項</strong>換個類別或業主看看。</div>';return;}
+    if(!shown.length){put(dueF?'<div class="empty"><strong>沒有符合的事項</strong>這個時段目前沒有待辦。</div>':'<div class="empty"><strong>這個篩選下沒有事項</strong>換個類別或業主看看。</div>');return;}
+    list.style.display="flex";list.style.flexDirection="column";list.style.gap="12px";
     const wrap=document.createElement("div"); wrap.style.cssText="display:flex;flex-direction:column;gap:18px";
     [["逾期",o.filter(t=>d(t)<0),"late"],["今天",o.filter(t=>d(t)===0)],["7 天內",o.filter(t=>d(t)>0&&d(t)<=7)],["之後",o.filter(t=>d(t)>7)]]
       .forEach(([l,items,c])=>{if(items.length) wrap.appendChild(group(l,items,c));});
@@ -318,7 +331,7 @@ details.set form{padding:0}
     if(r.title) $("fTitle").value=String(r.title);
     if(/^\d{4}-\d{2}-\d{2}$/.test(r.due||"")) $("fDue").value=r.due;
     if(["工程","人資","管理","私人"].includes(r.category)) $("fCat").value=r.category;
-    if(r.client) $("fClient").value=String(r.client);
+    if(r.client){const c=String(r.client);if(allClients().includes(c)){$("fClientSel").value=c;$("clientOtherWrap").hidden=true;}else{$("fClientSel").value="__other";$("clientOtherWrap").hidden=false;$("fClient").value=c;}}
     const miss=[]; if(!r.due) miss.push("截止日"); if(!r.category) miss.push("類別"); if(!r.client) miss.push("業主／案場");
     return miss;
   }
@@ -333,13 +346,17 @@ details.set form{padding:0}
 
   $("addForm").addEventListener("submit",async e=>{
     e.preventDefault();
-    const item={id:"t"+Date.now(),title:$("fTitle").value.trim(),due:$("fDue").value,category:$("fCat").value,client:$("fClient").value.trim(),done:false,created:new Date().toISOString()};
+    const item={id:"t"+Date.now(),title:$("fTitle").value.trim(),due:$("fDue").value,category:$("fCat").value,client:getClient(),done:false,created:new Date().toISOString()};
     if(!item.title||!item.due) return;
     const btn=$("addBtn"); btn.disabled=true; btn.textContent="加入中…";
-    const ok=await mutate(d=>{d.todos=d.todos||[];d.todos.push(item);},"新增："+item.title);
+    const ok=await mutate(d=>{d.todos=d.todos||[];d.todos.push(item);if(item.client){d.clients=d.clients||[];if(!d.clients.includes(item.client))d.clients.push(item.client);}},"新增："+item.title);
     btn.disabled=false; btn.textContent="加入";
-    if(ok){$("fTitle").value="";$("fClient").value="";$("fQuick").value="";$("quickMsg").textContent="";$("addBox").open=false;toast("已加入");}
+    if(ok){$("fTitle").value="";$("fClient").value="";$("fClientSel").value="";$("clientOtherWrap").hidden=true;$("fQuick").value="";$("quickMsg").textContent="";$("addBox").open=false;toast("已加入");}
   });
+
+  function getClient(){const v=$("fClientSel").value;return v==="__other"?$("fClient").value.trim():v;}
+  $("fClientSel").addEventListener("change",e=>{const o=e.target.value==="__other";$("clientOtherWrap").hidden=!o;if(o)$("fClient").focus();});
+  render();
 
   $("setForm").addEventListener("submit",async e=>{
     e.preventDefault();
@@ -351,6 +368,7 @@ details.set form{padding:0}
 
   document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{cat=b.dataset.cat;document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));render();}));
   $("clientFilter").addEventListener("change",e=>{client=e.target.value;render();});
+  document.querySelectorAll("button.stat").forEach(b=>b.addEventListener("click",()=>{dueF=dueF===b.dataset.due?"":b.dataset.due;render();$("list").scrollIntoView({behavior:"smooth",block:"start"});}));
   $("refreshBtn").addEventListener("click",()=>load().catch(()=>{}));
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!busy)load().catch(()=>{});});
 
