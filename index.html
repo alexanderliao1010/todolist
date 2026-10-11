@@ -20,7 +20,7 @@ body{margin:0}
   --hr:#7a4a72;  --hr-bg:#f1e6ef;
   --mgt:#6b6a1f; --mgt-bg:#eeeddc;
   --own:#a1502a; --own-bg:#f7e9df;
-  --late:#b23b2b; --late-bg:#f8e6e2; --soon:#a8660b;
+  --late:#b23b2b; --late-bg:#f8e6e2; --soon:#a8660b; --week-bg:#e4eefb;
   --f-display:"Noto Serif TC","Songti TC",serif;
   --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -30,13 +30,13 @@ body{margin:0}
   --accent:#6cb8ad; --accent-ink:#0e1a18;
   --eng:#8fb6de; --eng-bg:#1f2c3a; --hr:#d3a6ca; --hr-bg:#33232f; --mgt:#c9c779; --mgt-bg:#2c2b18;
   --own:#e9a885; --own-bg:#3a261b;
-  --late:#f08b7a; --late-bg:#3a201b; --soon:#e6a650; color-scheme:dark}}
+  --late:#f08b7a; --late-bg:#3a201b; --soon:#e6a650; --week-bg:#1b2a3c; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#141817; --surface:#1d2321; --fg:#e7ebe9; --muted:#9aa49f; --line:#2e3633;
   --accent:#6cb8ad; --accent-ink:#0e1a18;
   --eng:#8fb6de; --eng-bg:#1f2c3a; --hr:#d3a6ca; --hr-bg:#33232f; --mgt:#c9c779; --mgt-bg:#2c2b18;
   --own:#e9a885; --own-bg:#3a261b;
-  --late:#f08b7a; --late-bg:#3a201b; --soon:#e6a650; color-scheme:dark}
+  --late:#f08b7a; --late-bg:#3a201b; --soon:#e6a650; --week-bg:#1b2a3c; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5}
 .wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:flex;flex-direction:column;gap:18px}
@@ -60,6 +60,9 @@ select,input{font:inherit;color:var(--fg);background:var(--surface);border:1px s
 ul{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:12px 14px;border-top:1px solid var(--line)}
 li:first-child{border-top:0}
+li.is-late{background:var(--late-bg)}
+li.is-week{background:var(--week-bg)}
+.who{font-weight:500;color:var(--fg)}
 li input[type=checkbox]{width:20px;height:20px;margin-top:2px;accent-color:var(--accent);cursor:pointer}
 .body{min-width:0}
 .title{font-weight:500;overflow-wrap:anywhere}
@@ -159,6 +162,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
       <label class="full">事項<input id="fTitle" required placeholder="例：送施工計畫書"></label>
       <label>截止日<input id="fDue" type="date" required></label>
       <label>類別<select id="fCat"><option>工程</option><option>人資</option><option>管理</option><option>私人</option></select></label>
+      <label class="full">執行者<select id="fWho"><option>我</option><option>筑婷</option><option>小床</option><option>張詰</option><option>其他</option></select></label>
       <label class="full">業主／案場<select id="fClientSel"><option value="">（不指定）</option></select></label>
       <label class="full" id="clientOtherWrap" hidden>新業主／案場名稱<input id="fClient" placeholder="例：硯森營造"></label>
       <button type="submit" id="addBtn">加入</button>
@@ -166,25 +170,37 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   </details>
 
   <div class="filters" role="group" aria-label="類別篩選">
-    <button class="chip" data-cat="" aria-pressed="true">全部</button>
-    <button class="chip" data-cat="工程" aria-pressed="false">工程</button>
-    <button class="chip" data-cat="人資" aria-pressed="false">人資</button>
-    <button class="chip" data-cat="管理" aria-pressed="false">管理</button>
-    <button class="chip" data-cat="私人" aria-pressed="false">私人</button>
+    <button class="chip cat-chip" data-cat="" aria-pressed="true">全部</button>
+    <button class="chip cat-chip" data-cat="工程" aria-pressed="false">工程</button>
+    <button class="chip cat-chip" data-cat="人資" aria-pressed="false">人資</button>
+    <button class="chip cat-chip" data-cat="管理" aria-pressed="false">管理</button>
+    <button class="chip cat-chip" data-cat="私人" aria-pressed="false">私人</button>
+  </div>
+  <div class="filters" role="group" aria-label="執行者篩選">
+    <button class="chip who-chip" data-who="" aria-pressed="true">所有人</button>
+    <button class="chip who-chip" data-who="筑婷" aria-pressed="false">筑婷</button>
+    <button class="chip who-chip" data-who="小床" aria-pressed="false">小床</button>
+    <button class="chip who-chip" data-who="張詰" aria-pressed="false">張詰</button>
+    <button class="chip who-chip" data-who="我" aria-pressed="false">我</button>
+    <button class="chip who-chip" data-who="其他" aria-pressed="false">其他</button>
+  </div>
+  <div class="filters">
     <select id="clientFilter" aria-label="業主／案場篩選"><option value="">所有業主／案場</option></select>
   </div>
 
   <div id="list"><div class="empty"><strong>尚未連線</strong>先在上方「GitHub 連線設定」填入帳號、repo 和 token。</div></div>
 
   <div class="tools"><button type="button" id="refreshBtn">重新整理</button></div>
-  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G5（10/11）</p>
+  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G6（10/11）</p>
 </div>
 
 <script>
 (function(){
   const $=id=>document.getElementById(id);
   const DEFAULT_CLIENTS=["妃鉑","耆安","燃舍","豹發力","手機王","金日昇"];
-  let dueF="";
+  let dueF="", who="";
+  const WHO=["我","筑婷","小床","張詰","其他"];
+  const whoOf=t=>t.assignee||"我";
   let presetClients=[], todos=[], cat="", client="", pendingDel=null, sha=null, busy=false;
   let cfg={owner:"",repo:"todo-data",token:""};
   try{const c=JSON.parse(localStorage.getItem("todoCfg")||"{}");Object.assign(cfg,c);}catch(e){}
@@ -244,7 +260,9 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
 
   // ---- 畫面 ----
   function itemEl(t){
-    const li=document.createElement("li"); if(t.done) li.className="done";
+    const li=document.createElement("li");
+    if(t.done) li.className="done";
+    else if(t.due){const n=dayDiff(t.due); if(n<0) li.className="is-late"; else if(n<=7) li.className="is-week";}
     const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=!!t.done; cb.disabled=RO;
     cb.setAttribute("aria-label","完成："+t.title);
     cb.addEventListener("change",async()=>{const v=cb.checked;const ok=await mutate(d=>{const x=(d.todos||[]).find(y=>y.id===t.id);if(x)x.done=v;},(v?"完成：":"取消完成：")+t.title);if(!ok)cb.checked=!v;});
@@ -252,6 +270,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     const ti=document.createElement("div"); ti.className="title"; ti.textContent=t.title||"（未命名）";
     const meta=document.createElement("div"); meta.className="meta";
     if(t.category){const p=document.createElement("span");p.className="pill "+t.category;p.textContent=t.category;meta.appendChild(p);}
+    {const w=document.createElement("span");w.className="who";w.textContent="執行："+whoOf(t);meta.appendChild(w);}
     if(t.client){const c=document.createElement("span");c.textContent=t.client;meta.appendChild(c);}
     if(t.due){const n=dayDiff(t.due);const d=document.createElement("span");d.className="due"+(!t.done&&n<0?" late":!t.done&&n<=2?" soon":"");d.textContent=fmtDue(t.due)+(t.done?"":" · "+rel(n));meta.appendChild(d);}
     body.append(ti,meta);
@@ -283,7 +302,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     cs.replaceChildren(new Option("（不指定）",""),...clients.map(c=>new Option(c,c)),new Option("＋ 其他（自行輸入）","__other"));
     cs.value=(curC==="__other"||clients.includes(curC))?curC:"";
     const inDue=t=>!dueF||(!t.done&&(dueF==="late"?d(t)<0:dueF==="today"?d(t)===0:d(t)>0&&d(t)<=7));
-    const shown=todos.filter(t=>(!cat||t.category===cat)&&(!client||t.client===client)&&inDue(t));
+    const shown=todos.filter(t=>(!cat||t.category===cat)&&(!client||t.client===client)&&(!who||whoOf(t)===who)&&inDue(t));
     document.querySelectorAll("button.stat").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.due===dueF)));
     const byDue=(a,b)=>(a.due||"9999").localeCompare(b.due||"9999");
     const o=shown.filter(t=>!t.done).sort(byDue), done=shown.filter(t=>t.done).sort((a,b)=>byDue(b,a));
@@ -308,7 +327,10 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   const WDX={"一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"日":0,"天":0};
   function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
   function localParse(text){
-    let s=text, due="", cat="", cli="";
+    let s=text.replace(/^[\s，,。:：]*(增加|新增)?(代辦|待辦)(清單|事項)?[\s，,。:：]*/,""), due="", cat="", cli="", asg="";
+    for(const n of ["筑婷","小床","張詰"]){if(s.includes(n)){asg=n;s=s.replace(n,"");break;}}
+    if(!asg&&/^[\s，,]*我[\s，,]/.test(s)){asg="我";s=s.replace(/^[\s，,]*我/,"");}
+    s=s.replace(/^[\s，,。]+/,"");
     const t=new Date(); t.setHours(0,0,0,0);
     const cut=m=>{s=s.replace(m,"");};
     let m;
@@ -331,12 +353,13 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     const KW={"工程":/施工|工程|標案|投標|估價|估驗|監造|三書|工地|案場|竣工|開工|圖說|預算書|驗收|報價|服務建議書/,"人資":/薪資|勞健保|勞保|健保|招募|面試|員工|人資|人事|考核|職等|offer|請假|加班/i,"管理":/財務|治理|董事|股東|報表|經營|預算|會議|開會|簡報|稅|合約|門市|營運/,"私人":/家裡|家務|小孩|老婆|太太|爸|媽|醫院|看診|繳費|私人|個人/};
     for(const k of ["工程","人資","管理","私人"]){if(KW[k].test(text)){cat=k;break;}}
     s=s.replace(/^[\s，,。]*(提醒我|記得|要|請|幫我)+/,"").replace(/(之前|以前|前)(?=[^一-鿿]|要|送|交|完成|處理|$)/,"").replace(/^[\s的，,]+|[\s，,。]+$/g,"").replace(/^(要|送出?)?的/,"").trim();
-    return {title:s||text,due,category:cat,client:cli};
+    return {title:s||text,due,category:cat,client:cli,assignee:asg};
   }
   function fill(r){
     if(r.title) $("fTitle").value=String(r.title);
     if(/^\d{4}-\d{2}-\d{2}$/.test(r.due||"")) $("fDue").value=r.due;
     if(["工程","人資","管理","私人"].includes(r.category)) $("fCat").value=r.category;
+    if(WHO.includes(r.assignee)) $("fWho").value=r.assignee;
     if(r.client){const c=String(r.client);if(allClients().includes(c)){$("fClientSel").value=c;$("clientOtherWrap").hidden=true;}else{$("fClientSel").value="__other";$("clientOtherWrap").hidden=false;$("fClient").value=c;}}
     const miss=[]; if(!r.due) miss.push("截止日"); if(!r.category) miss.push("類別"); if(!r.client) miss.push("業主／案場");
     return miss;
@@ -352,7 +375,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
 
   $("addForm").addEventListener("submit",async e=>{
     e.preventDefault();
-    const item={id:"t"+Date.now(),title:$("fTitle").value.trim(),due:$("fDue").value,category:$("fCat").value,client:getClient(),done:false,created:new Date().toISOString()};
+    const item={id:"t"+Date.now(),title:$("fTitle").value.trim(),due:$("fDue").value,category:$("fCat").value,assignee:$("fWho").value,client:getClient(),done:false,created:new Date().toISOString()};
     if(!item.title||!item.due) return;
     const btn=$("addBtn"); btn.disabled=true; btn.textContent="加入中…";
     const ok=await mutate(d=>{d.todos=d.todos||[];d.todos.push(item);if(item.client){d.clients=d.clients||[];if(!d.clients.includes(item.client))d.clients.push(item.client);}},"新增："+item.title);
@@ -373,7 +396,8 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   if(RO){$("addBox").hidden=true;const pc=document.querySelector('.chip[data-cat="私人"]');if(pc)pc.hidden=true;document.querySelector(".note").textContent="唯讀檢視：只能查看，無法新增或修改。";}
   $("sOwner").value=cfg.owner; $("sRepo").value=cfg.repo; $("sToken").value=cfg.token;
 
-  document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{cat=b.dataset.cat;document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));render();}));
+  document.querySelectorAll(".cat-chip").forEach(b=>b.addEventListener("click",()=>{cat=b.dataset.cat;document.querySelectorAll(".cat-chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));render();}));
+  document.querySelectorAll(".who-chip").forEach(b=>b.addEventListener("click",()=>{who=b.dataset.who;document.querySelectorAll(".who-chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));render();}));
   $("clientFilter").addEventListener("change",e=>{client=e.target.value;render();});
   document.querySelectorAll("button.stat").forEach(b=>b.addEventListener("click",()=>{dueF=dueF===b.dataset.due?"":b.dataset.due;render();$("list").scrollIntoView({behavior:"smooth",block:"start"});}));
   $("refreshBtn").addEventListener("click",()=>load().catch(()=>{}));
