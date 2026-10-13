@@ -77,6 +77,18 @@ li.done .title{text-decoration:line-through;color:var(--muted)}
 .due.late{color:var(--late)} .due.soon{color:var(--soon)}
 .del{border:0;background:none;color:var(--muted);font:inherit;font-size:.8rem;cursor:pointer;padding:2px 4px;white-space:nowrap}
 .del.confirm{color:var(--late);font-weight:700}
+.acts{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.edit-btn{border:0;background:none;color:var(--accent);font:inherit;font-size:.8rem;font-weight:500;cursor:pointer;padding:2px 4px;white-space:nowrap}
+li.editing{display:block;background:var(--surface)}
+.ed{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ed label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}
+.ed .full{grid-column:1/-1}
+.ed input,.ed select{width:100%;min-height:42px;font-size:16px}
+.ed-btns{grid-column:1/-1;display:flex;gap:8px}
+.ed-btns button{flex:1;border-radius:8px;padding:10px;font:inherit;font-weight:700;cursor:pointer}
+.ed-save{background:var(--accent);color:var(--accent-ink);border:0}
+.ed-cancel{background:var(--surface);color:var(--fg);border:1px solid var(--line)}
+@media (max-width:600px){.ed{grid-template-columns:1fr}}
 details.add{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:0;overflow:hidden}
 details.add summary{cursor:pointer;font-weight:700;background:var(--accent);color:var(--accent-ink);padding:12px 14px;list-style:none;text-align:center;font-size:1rem}
 details.add summary::-webkit-details-marker{display:none}
@@ -191,7 +203,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   <div id="list"><div class="empty"><strong>尚未連線</strong>先在上方「GitHub 連線設定」填入帳號、repo 和 token。</div></div>
 
   <div class="tools"><button type="button" id="refreshBtn">重新整理</button></div>
-  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G6（10/11）</p>
+  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G7（10/13）</p>
 </div>
 
 <script>
@@ -201,7 +213,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   let dueF="", who="";
   const WHO=["我","筑婷","小床","張詰","其他"];
   const whoOf=t=>t.assignee||"我";
-  let presetClients=[], todos=[], cat="", client="", pendingDel=null, sha=null, busy=false;
+  let presetClients=[], todos=[], cat="", client="", pendingDel=null, editingId=null, sha=null, busy=false;
   let cfg={owner:"",repo:"todo-data",token:""};
   try{const c=JSON.parse(localStorage.getItem("todoCfg")||"{}");Object.assign(cfg,c);}catch(e){}
   const qs=new URLSearchParams(location.search);
@@ -259,7 +271,37 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   }
 
   // ---- 畫面 ----
+  function editEl(t){
+    const li=document.createElement("li"); li.className="editing";
+    const f=document.createElement("form"); f.className="ed";
+    const mk=(label,el,full)=>{const l=document.createElement("label");if(full)l.className="full";l.append(label,el);f.appendChild(l);return el;};
+    const sel=(opts,val)=>{const s=document.createElement("select");opts.forEach(([v,tx])=>s.appendChild(new Option(tx,v)));s.value=val;return s;};
+    const iT=mk("事項",Object.assign(document.createElement("input"),{value:t.title||"",required:true}),true);
+    const iD=mk("截止日",Object.assign(document.createElement("input"),{type:"date",value:t.due||""}));
+    const iC=mk("類別",sel(["工程","人資","管理","私人"].map(x=>[x,x]),t.category||"工程"));
+    const iW=mk("執行者",sel(WHO.map(x=>[x,x]),whoOf(t)),true);
+    const cl=allClients(); const cur=t.client||"";
+    const iS=mk("業主／案場",sel([["","（不指定）"]].concat(cl.map(x=>[x,x]),[["__other","＋ 其他（自行輸入）"]]),cl.includes(cur)||!cur?cur:"__other"),true);
+    const iO=Object.assign(document.createElement("input"),{value:cl.includes(cur)?"":cur,placeholder:"新業主／案場名稱"});
+    const oL=document.createElement("label");oL.className="full";oL.append("新業主／案場名稱",iO);oL.hidden=iS.value!=="__other";f.appendChild(oL);
+    iS.addEventListener("change",()=>{oL.hidden=iS.value!=="__other";});
+    const bx=document.createElement("div");bx.className="ed-btns";
+    const sv=Object.assign(document.createElement("button"),{type:"submit",className:"ed-save",textContent:"儲存"});
+    const cc=Object.assign(document.createElement("button"),{type:"button",className:"ed-cancel",textContent:"取消"});
+    cc.addEventListener("click",()=>{editingId=null;render();});
+    bx.append(cc,sv);f.appendChild(bx);
+    f.addEventListener("submit",async e=>{
+      e.preventDefault();
+      const title=iT.value.trim(); if(!title) return;
+      const upd={title,due:iD.value,category:iC.value,assignee:iW.value,client:iS.value==="__other"?iO.value.trim():iS.value};
+      sv.disabled=true; sv.textContent="儲存中…";
+      const ok=await mutate(d=>{const x=(d.todos||[]).find(y=>y.id===t.id);if(x)Object.assign(x,upd);if(upd.client){d.clients=d.clients||[];if(!d.clients.includes(upd.client))d.clients.push(upd.client);}},"修改："+title);
+      if(ok){editingId=null;render();toast("已儲存");}else{sv.disabled=false;sv.textContent="儲存";}
+    });
+    li.appendChild(f); return li;
+  }
   function itemEl(t){
+    if(editingId===t.id&&!RO) return editEl(t);
     const li=document.createElement("li");
     if(t.done) li.className="done";
     else if(t.due){const n=dayDiff(t.due); if(n<0) li.className="is-late"; else if(n<=7) li.className="is-week";}
@@ -281,7 +323,10 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
       pendingDel=null;
       if(await mutate(d=>{d.todos=(d.todos||[]).filter(y=>y.id!==t.id);},"刪除："+t.title)) toast("已刪除");
     });
-    li.append(cb,body,del); return li;
+    const ed=document.createElement("button"); ed.className="edit-btn"; ed.type="button"; ed.textContent="修改"; ed.hidden=RO;
+    ed.addEventListener("click",()=>{editingId=t.id;pendingDel=null;render();});
+    const acts=document.createElement("div"); acts.className="acts"; acts.append(ed,del);
+    li.append(cb,body,acts); return li;
   }
   function group(label,items,cls){
     const s=document.createElement("section"); s.className="group "+(cls||"");
@@ -401,7 +446,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   $("clientFilter").addEventListener("change",e=>{client=e.target.value;render();});
   document.querySelectorAll("button.stat").forEach(b=>b.addEventListener("click",()=>{dueF=dueF===b.dataset.due?"":b.dataset.due;render();$("list").scrollIntoView({behavior:"smooth",block:"start"});}));
   $("refreshBtn").addEventListener("click",()=>load().catch(()=>{}));
-  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!busy)load().catch(()=>{});});
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!busy&&!editingId)load().catch(()=>{});});
 
   load().catch(()=>{});
 })();
