@@ -192,7 +192,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   <div id="list"><div class="empty"><strong>尚未連線</strong>先在上方「GitHub 連線設定」填入帳號、repo 和 token。</div></div>
 
   <div class="tools"><button type="button" id="refreshBtn">重新整理</button></div>
-  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G8（10/22）</p>
+  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G9（10/22）</p>
 </div>
 
 <script>
@@ -326,7 +326,15 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     });
     const ed=document.createElement("button"); ed.className="edit-btn"; ed.type="button"; ed.textContent="修改"; ed.hidden=RO;
     ed.addEventListener("click",()=>{editingId=t.id;pendingDel=null;render();});
-    const acts=document.createElement("div"); acts.className="acts"; acts.append(ed,del);
+    const cp=document.createElement("button"); cp.className="edit-btn"; cp.type="button"; cp.textContent="複製"; cp.hidden=RO;
+    cp.addEventListener("click",async()=>{
+      const copy=Object.assign({},t,{id:"t"+Date.now(),done:false,created:new Date().toISOString()});
+      cp.disabled=true;
+      const ok=await mutate(d=>{d.todos=d.todos||[];d.todos.push(copy);},"複製："+t.title);
+      cp.disabled=false;
+      if(ok){editingId=copy.id;pendingDel=null;render();toast("已複製，可直接修改");}
+    });
+    const acts=document.createElement("div"); acts.className="acts"; acts.append(ed,cp,del);
     li.append(cb,body,acts); return li;
   }
   function group(label,items,cls){
