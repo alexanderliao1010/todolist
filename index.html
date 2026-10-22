@@ -78,6 +78,11 @@ li.done .title{text-decoration:line-through;color:var(--muted)}
 .del{border:0;background:none;color:var(--muted);font:inherit;font-size:.8rem;cursor:pointer;padding:2px 4px;white-space:nowrap}
 .del.confirm{color:var(--late);font-weight:700}
 .acts{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.fld{display:flex;flex-direction:column;gap:6px;font-size:.8rem;color:var(--muted)}
+.fld input[type=date]{width:100%;min-height:44px}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+form .seg button,.seg button{grid-column:auto;width:auto;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:9px 0;font:inherit;font-size:.9rem;cursor:pointer}
+form .seg button[aria-pressed="true"],.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .edit-btn{border:0;background:none;color:var(--accent);font:inherit;font-size:.8rem;font-weight:500;cursor:pointer;padding:2px 4px;white-space:nowrap}
 li.editing{display:block;background:var(--surface)}
 .ed{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -172,8 +177,8 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
         <div class="quick-msg" id="quickMsg" role="status"></div>
       </div>
       <label class="full">事項<input id="fTitle" required placeholder="例：送施工計畫書"></label>
-      <label>截止日<input id="fDue" type="date" required></label>
-      <label>時段<select id="fSlot"><option value="">不指定</option><option>早上</option><option>下午</option><option>晚上</option></select></label>
+      <div class="full fld"><label for="fDue">截止日</label><input id="fDue" type="date" required>
+        <div class="seg" id="fSlotSeg" role="group" aria-label="時段"></div><input type="hidden" id="fSlot" value=""></div>
       <label class="full">類別<select id="fCat"></select></label>
       <label class="full" id="catOtherWrap" hidden>新類別名稱<input id="fCatNew" placeholder="例：財務"></label>
       <label class="full">執行者<select id="fWho"></select></label>
@@ -193,7 +198,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   <div id="list"><div class="empty"><strong>尚未連線</strong>先在上方「GitHub 連線設定」填入帳號、repo 和 token。</div></div>
 
   <div class="tools"><button type="button" id="refreshBtn">重新整理</button></div>
-  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G10（10/22）</p>
+  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G11（10/22）</p>
 </div>
 
 <script>
@@ -274,8 +279,11 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     const mk=(label,el,full)=>{const l=document.createElement("label");if(full)l.className="full";l.append(label,el);f.appendChild(l);return el;};
     const sel=(opts,val)=>{const s=document.createElement("select");opts.forEach(([v,tx])=>s.appendChild(new Option(tx,v)));s.value=val;return s;};
     const iT=mk("事項",Object.assign(document.createElement("input"),{value:t.title||"",required:true}),true);
-    const iD=mk("截止日",Object.assign(document.createElement("input"),{type:"date",value:t.due||""}));
-    const iP=mk("時段",sel([["","不指定"],["早上","早上"],["下午","下午"],["晚上","晚上"]],t.slot||""));
+    const dw=document.createElement("div");dw.className="full fld";
+    const iD=Object.assign(document.createElement("input"),{type:"date",value:t.due||""});
+    const iP=Object.assign(document.createElement("input"),{type:"hidden"});
+    const sg=document.createElement("div");sg.className="seg";
+    dw.append("截止日",iD,sg,iP);f.appendChild(dw);makeSeg(sg,iP,t.slot||"");
     const pair=(label,list,val,full)=>{const s=document.createElement("select");fillSel(s,list,list.includes(val)||!val?(val||list[0]):OTHER);mk(label,s,full);
       const o=Object.assign(document.createElement("input"),{value:list.includes(val)?"":(val||""),placeholder:"新"+label+"名稱"});
       const l=document.createElement("label");l.className="full";l.append("新"+label+"名稱",o);l.hidden=s.value!==OTHER;f.appendChild(l);
@@ -346,6 +354,13 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     s.append(h,ul); return s;
   }
   function allClients(){return [...new Set(DEFAULT_CLIENTS.concat(presetClients,todos.map(t=>t.client)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));}
+  function makeSeg(box,hidden,val){
+    const opts=[["","不指定"],["早上","早上"],["下午","下午"],["晚上","晚上"]];
+    box.replaceChildren(...opts.map(([v,tx])=>{const b=document.createElement("button");b.type="button";b.dataset.v=v;b.textContent=tx;return b;}));
+    const set=v=>{hidden.value=v||"";box.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===hidden.value)));};
+    box.addEventListener("click",e=>{const b=e.target.closest("button");if(b)set(b.dataset.v);});
+    set(val); return set;
+  }
   function chips(box,list,cur,allLabel){box.replaceChildren(...[["",allLabel]].concat(list.map(x=>[x,x])).map(([v,tx])=>{const b=document.createElement("button");b.type="button";b.className="chip";b.dataset.v=v;b.textContent=tx;b.setAttribute("aria-pressed",String(v===cur));return b;}));}
   function render(){
     const cats=allCats().filter(x=>!(RO&&x==="私人")), ppl=allPeople();
@@ -422,7 +437,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   function fill(r){
     if(r.title) $("fTitle").value=String(r.title);
     if(/^\d{4}-\d{2}-\d{2}$/.test(r.due||"")) $("fDue").value=r.due;
-    if(r.slot) $("fSlot").value=r.slot;
+    if(r.slot) setSlot(r.slot);
     if(allCats().includes(r.category)){$("fCat").value=r.category;$("catOtherWrap").hidden=true;}
     if(allPeople().includes(r.assignee)){$("fWho").value=r.assignee;$("whoOtherWrap").hidden=true;}
     if(r.client){const c=String(r.client);if(allClients().includes(c)){$("fClientSel").value=c;$("clientOtherWrap").hidden=true;}else{$("fClientSel").value="__other";$("clientOtherWrap").hidden=false;$("fClient").value=c;}}
@@ -445,11 +460,12 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     const btn=$("addBtn"); btn.disabled=true; btn.textContent="加入中…";
     const ok=await mutate(d=>{d.todos=d.todos||[];d.todos.push(item);addTo(d,"categories",item.category,BASE_CATS);addTo(d,"people",item.assignee,BASE_WHO);if(item.client){d.clients=d.clients||[];if(!d.clients.includes(item.client))d.clients.push(item.client);}},"新增："+item.title);
     btn.disabled=false; btn.textContent="加入";
-    if(ok){$("fTitle").value="";$("fClient").value="";$("fClientSel").value="";$("clientOtherWrap").hidden=true;$("fCatNew").value="";$("fWhoNew").value="";$("fSlot").value="";$("catOtherWrap").hidden=true;$("whoOtherWrap").hidden=true;$("fCat").value=allCats()[0];$("fWho").value="我";$("fQuick").value="";$("quickMsg").textContent="";$("addBox").open=false;toast("已加入");}
+    if(ok){$("fTitle").value="";$("fClient").value="";$("fClientSel").value="";$("clientOtherWrap").hidden=true;$("fCatNew").value="";$("fWhoNew").value="";setSlot("");$("catOtherWrap").hidden=true;$("whoOtherWrap").hidden=true;$("fCat").value=allCats()[0];$("fWho").value="我";$("fQuick").value="";$("quickMsg").textContent="";$("addBox").open=false;toast("已加入");}
   });
 
   function getClient(){const v=$("fClientSel").value;return v==="__other"?$("fClient").value.trim():v;}
   $("fClientSel").addEventListener("change",e=>{const o=e.target.value==="__other";$("clientOtherWrap").hidden=!o;if(o)$("fClient").focus();});
+  const setSlot=makeSeg($("fSlotSeg"),$("fSlot"),"");
   render();
 
   $("setForm").addEventListener("submit",async e=>{
