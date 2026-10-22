@@ -68,7 +68,7 @@ li input[type=checkbox]{width:20px;height:20px;margin-top:2px;accent-color:var(-
 .title{font-weight:500;overflow-wrap:anywhere}
 li.done .title{text-decoration:line-through;color:var(--muted)}
 .meta{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:4px;font-size:.82rem;color:var(--muted);align-items:center}
-.pill{border-radius:4px;padding:1px 7px;font-size:.78rem;font-weight:500}
+.pill{background:var(--bg);color:var(--muted);border-radius:4px;padding:1px 7px;font-size:.78rem;font-weight:500}
 .pill.工程{color:var(--eng);background:var(--eng-bg)}
 .pill.人資{color:var(--hr);background:var(--hr-bg)}
 .pill.管理{color:var(--mgt);background:var(--mgt-bg)}
@@ -173,29 +173,18 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
       </div>
       <label class="full">事項<input id="fTitle" required placeholder="例：送施工計畫書"></label>
       <label>截止日<input id="fDue" type="date" required></label>
-      <label>類別<select id="fCat"><option>工程</option><option>人資</option><option>管理</option><option>私人</option></select></label>
-      <label class="full">執行者<select id="fWho"><option>我</option><option>筑婷</option><option>小床</option><option>張詰</option><option>其他</option></select></label>
+      <label>類別<select id="fCat"></select></label>
+      <label class="full" id="catOtherWrap" hidden>新類別名稱<input id="fCatNew" placeholder="例：財務"></label>
+      <label class="full">執行者<select id="fWho"></select></label>
+      <label class="full" id="whoOtherWrap" hidden>新執行者名稱<input id="fWhoNew" placeholder="例：小明"></label>
       <label class="full">業主／案場<select id="fClientSel"><option value="">（不指定）</option></select></label>
       <label class="full" id="clientOtherWrap" hidden>新業主／案場名稱<input id="fClient" placeholder="例：硯森營造"></label>
       <button type="submit" id="addBtn">加入</button>
     </form>
   </details>
 
-  <div class="filters" role="group" aria-label="類別篩選">
-    <button class="chip cat-chip" data-cat="" aria-pressed="true">全部</button>
-    <button class="chip cat-chip" data-cat="工程" aria-pressed="false">工程</button>
-    <button class="chip cat-chip" data-cat="人資" aria-pressed="false">人資</button>
-    <button class="chip cat-chip" data-cat="管理" aria-pressed="false">管理</button>
-    <button class="chip cat-chip" data-cat="私人" aria-pressed="false">私人</button>
-  </div>
-  <div class="filters" role="group" aria-label="執行者篩選">
-    <button class="chip who-chip" data-who="" aria-pressed="true">所有人</button>
-    <button class="chip who-chip" data-who="筑婷" aria-pressed="false">筑婷</button>
-    <button class="chip who-chip" data-who="小床" aria-pressed="false">小床</button>
-    <button class="chip who-chip" data-who="張詰" aria-pressed="false">張詰</button>
-    <button class="chip who-chip" data-who="我" aria-pressed="false">我</button>
-    <button class="chip who-chip" data-who="其他" aria-pressed="false">其他</button>
-  </div>
+  <div class="filters" role="group" aria-label="類別篩選" id="catChips"></div>
+  <div class="filters" role="group" aria-label="執行者篩選" id="whoChips"></div>
   <div class="filters">
     <select id="clientFilter" aria-label="業主／案場篩選"><option value="">所有業主／案場</option></select>
   </div>
@@ -203,7 +192,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   <div id="list"><div class="empty"><strong>尚未連線</strong>先在上方「GitHub 連線設定」填入帳號、repo 和 token。</div></div>
 
   <div class="tools"><button type="button" id="refreshBtn">重新整理</button></div>
-  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G7（10/13）</p>
+  <p class="note">資料存在你的私人 GitHub repo。也可以在 Claude 對話裡說「增加待辦」。<br>版本 G8（10/22）</p>
 </div>
 
 <script>
@@ -211,7 +200,14 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   const $=id=>document.getElementById(id);
   const DEFAULT_CLIENTS=["妃鉑","耆安","燃舍","豹發力","手機王","金日昇"];
   let dueF="", who="";
-  const WHO=["我","筑婷","小床","張詰","其他"];
+  const BASE_CATS=["工程","人資","管理","私人"], BASE_WHO=["我","筑婷","小床","張詰"];
+  let presetCats=[], presetPeople=[];
+  const uniq=a=>[...new Set(a.filter(x=>x&&x!=="其他"))];
+  const allCats=()=>uniq(BASE_CATS.concat(presetCats,todos.map(t=>t.category)));
+  const allPeople=()=>uniq(BASE_WHO.concat(presetPeople,todos.map(t=>t.assignee)));
+  const OTHER="__other";
+  function fillSel(s,list,keep,extra){const v=keep??s.value;s.replaceChildren(...(extra||[]).map(([a,b])=>new Option(b,a)),...list.map(x=>new Option(x,x)),new Option("＋ 其他（自行輸入）",OTHER));s.value=(list.includes(v)||v===OTHER||(extra||[]).some(e=>e[0]===v))?v:(extra&&extra.length?extra[0][0]:list[0]);}
+  function addTo(d,key,v,base){if(!v||base.includes(v))return;d[key]=d[key]||[];if(!d[key].includes(v))d[key].push(v);}
   const whoOf=t=>t.assignee||"我";
   let presetClients=[], todos=[], cat="", client="", pendingDel=null, editingId=null, sha=null, busy=false;
   let cfg={owner:"",repo:"todo-data",token:""};
@@ -247,7 +243,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     if(!r.ok){setConn("連線失敗："+errText(r.status),false);throw new Error(errText(r.status));}
     const j=await r.json(); sha=j.sha;
     const d=JSON.parse(b64dec(j.content)||"{}");
-    presetClients=Array.isArray(d.clients)?d.clients:[]; todos=Array.isArray(d.todos)?d.todos:[];
+    presetClients=Array.isArray(d.clients)?d.clients:[]; presetCats=Array.isArray(d.categories)?d.categories:[]; presetPeople=Array.isArray(d.people)?d.people:[]; todos=Array.isArray(d.todos)?d.todos:[];
     if(RO) todos=todos.filter(t=>t.category!=="私人");
     setConn(RO?"已連線（唯讀）":"已連線 GitHub",true); render(); return d;
   }
@@ -278,8 +274,13 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     const sel=(opts,val)=>{const s=document.createElement("select");opts.forEach(([v,tx])=>s.appendChild(new Option(tx,v)));s.value=val;return s;};
     const iT=mk("事項",Object.assign(document.createElement("input"),{value:t.title||"",required:true}),true);
     const iD=mk("截止日",Object.assign(document.createElement("input"),{type:"date",value:t.due||""}));
-    const iC=mk("類別",sel(["工程","人資","管理","私人"].map(x=>[x,x]),t.category||"工程"));
-    const iW=mk("執行者",sel(WHO.map(x=>[x,x]),whoOf(t)),true);
+    const pair=(label,list,val,full)=>{const s=document.createElement("select");fillSel(s,list,list.includes(val)||!val?(val||list[0]):OTHER);mk(label,s,full);
+      const o=Object.assign(document.createElement("input"),{value:list.includes(val)?"":(val||""),placeholder:"新"+label+"名稱"});
+      const l=document.createElement("label");l.className="full";l.append("新"+label+"名稱",o);l.hidden=s.value!==OTHER;f.appendChild(l);
+      s.addEventListener("change",()=>{l.hidden=s.value!==OTHER;if(!l.hidden)o.focus();});
+      return ()=>s.value===OTHER?o.value.trim():s.value;};
+    const gC=pair("類別",allCats(),t.category,true);
+    const gW=pair("執行者",allPeople(),whoOf(t),true);
     const cl=allClients(); const cur=t.client||"";
     const iS=mk("業主／案場",sel([["","（不指定）"]].concat(cl.map(x=>[x,x]),[["__other","＋ 其他（自行輸入）"]]),cl.includes(cur)||!cur?cur:"__other"),true);
     const iO=Object.assign(document.createElement("input"),{value:cl.includes(cur)?"":cur,placeholder:"新業主／案場名稱"});
@@ -293,9 +294,9 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     f.addEventListener("submit",async e=>{
       e.preventDefault();
       const title=iT.value.trim(); if(!title) return;
-      const upd={title,due:iD.value,category:iC.value,assignee:iW.value,client:iS.value==="__other"?iO.value.trim():iS.value};
+      const upd={title,due:iD.value,category:gC(),assignee:gW()||"我",client:iS.value==="__other"?iO.value.trim():iS.value};
       sv.disabled=true; sv.textContent="儲存中…";
-      const ok=await mutate(d=>{const x=(d.todos||[]).find(y=>y.id===t.id);if(x)Object.assign(x,upd);if(upd.client){d.clients=d.clients||[];if(!d.clients.includes(upd.client))d.clients.push(upd.client);}},"修改："+title);
+      const ok=await mutate(d=>{const x=(d.todos||[]).find(y=>y.id===t.id);if(x)Object.assign(x,upd);addTo(d,"categories",upd.category,BASE_CATS);addTo(d,"people",upd.assignee,BASE_WHO);if(upd.client){d.clients=d.clients||[];if(!d.clients.includes(upd.client))d.clients.push(upd.client);}},"修改："+title);
       if(ok){editingId=null;render();toast("已儲存");}else{sv.disabled=false;sv.textContent="儲存";}
     });
     li.appendChild(f); return li;
@@ -335,7 +336,12 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     s.append(h,ul); return s;
   }
   function allClients(){return [...new Set(DEFAULT_CLIENTS.concat(presetClients,todos.map(t=>t.client)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));}
+  function chips(box,list,cur,allLabel){box.replaceChildren(...[["",allLabel]].concat(list.map(x=>[x,x])).map(([v,tx])=>{const b=document.createElement("button");b.type="button";b.className="chip";b.dataset.v=v;b.textContent=tx;b.setAttribute("aria-pressed",String(v===cur));return b;}));}
   function render(){
+    const cats=allCats().filter(x=>!(RO&&x==="私人")), ppl=allPeople();
+    if(cat&&!cats.includes(cat)) cat=""; if(who&&!ppl.includes(who)) who="";
+    chips($("catChips"),cats,cat,"全部"); chips($("whoChips"),ppl,who,"所有人");
+    fillSel($("fCat"),allCats()); fillSel($("fWho"),ppl);
     const open=todos.filter(t=>!t.done); const d=t=>t.due?dayDiff(t.due):9999;
     $("sLate").textContent=open.filter(t=>d(t)<0).length;
     $("sToday").textContent=open.filter(t=>d(t)===0).length;
@@ -373,7 +379,7 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
   function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
   function localParse(text){
     let s=text.replace(/^[\s，,。:：]*(增加|新增)?(代辦|待辦)(清單|事項)?[\s，,。:：]*/,""), due="", cat="", cli="", asg="";
-    for(const n of ["筑婷","小床","張詰"]){if(s.includes(n)){asg=n;s=s.replace(n,"");break;}}
+    for(const n of allPeople().filter(x=>x!=="我").sort((a,b)=>b.length-a.length)){if(s.includes(n)){asg=n;s=s.replace(n,"");break;}}
     if(!asg&&/^[\s，,]*我[\s，,]/.test(s)){asg="我";s=s.replace(/^[\s，,]*我/,"");}
     s=s.replace(/^[\s，,。]+/,"");
     const t=new Date(); t.setHours(0,0,0,0);
@@ -396,15 +402,16 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     const known=[...new Set(presetClients.concat(todos.map(x=>x.client)).filter(Boolean))].sort((a,b)=>b.length-a.length);
     for(const c of known){const short=c.replace(/(股份)?有限公司|營造|公司/g,"");if(s.includes(c)||(short.length>=2&&s.includes(short))){cli=c;break;}}
     const KW={"工程":/施工|工程|標案|投標|估價|估驗|監造|三書|工地|案場|竣工|開工|圖說|預算書|驗收|報價|服務建議書/,"人資":/薪資|勞健保|勞保|健保|招募|面試|員工|人資|人事|考核|職等|offer|請假|加班/i,"管理":/財務|治理|董事|股東|報表|經營|預算|會議|開會|簡報|稅|合約|門市|營運/,"私人":/家裡|家務|小孩|老婆|太太|爸|媽|醫院|看診|繳費|私人|個人/};
-    for(const k of ["工程","人資","管理","私人"]){if(KW[k].test(text)){cat=k;break;}}
+    for(const k of allCats().filter(x=>!BASE_CATS.includes(x))){if(text.includes(k)){cat=k;break;}}
+    if(!cat) for(const k of BASE_CATS){if(KW[k].test(text)){cat=k;break;}}
     s=s.replace(/^[\s，,。]*(提醒我|記得|要|請|幫我)+/,"").replace(/(之前|以前|前)(?=[^一-鿿]|要|送|交|完成|處理|$)/,"").replace(/^[\s的，,]+|[\s，,。]+$/g,"").replace(/^(要|送出?)?的/,"").trim();
     return {title:s||text,due,category:cat,client:cli,assignee:asg};
   }
   function fill(r){
     if(r.title) $("fTitle").value=String(r.title);
     if(/^\d{4}-\d{2}-\d{2}$/.test(r.due||"")) $("fDue").value=r.due;
-    if(["工程","人資","管理","私人"].includes(r.category)) $("fCat").value=r.category;
-    if(WHO.includes(r.assignee)) $("fWho").value=r.assignee;
+    if(allCats().includes(r.category)){$("fCat").value=r.category;$("catOtherWrap").hidden=true;}
+    if(allPeople().includes(r.assignee)){$("fWho").value=r.assignee;$("whoOtherWrap").hidden=true;}
     if(r.client){const c=String(r.client);if(allClients().includes(c)){$("fClientSel").value=c;$("clientOtherWrap").hidden=true;}else{$("fClientSel").value="__other";$("clientOtherWrap").hidden=false;$("fClient").value=c;}}
     const miss=[]; if(!r.due) miss.push("截止日"); if(!r.category) miss.push("類別"); if(!r.client) miss.push("業主／案場");
     return miss;
@@ -420,12 +427,12 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
 
   $("addForm").addEventListener("submit",async e=>{
     e.preventDefault();
-    const item={id:"t"+Date.now(),title:$("fTitle").value.trim(),due:$("fDue").value,category:$("fCat").value,assignee:$("fWho").value,client:getClient(),done:false,created:new Date().toISOString()};
+    const item={id:"t"+Date.now(),title:$("fTitle").value.trim(),due:$("fDue").value,category:pick("fCat","fCatNew"),assignee:pick("fWho","fWhoNew")||"我",client:getClient(),done:false,created:new Date().toISOString()};
     if(!item.title||!item.due) return;
     const btn=$("addBtn"); btn.disabled=true; btn.textContent="加入中…";
-    const ok=await mutate(d=>{d.todos=d.todos||[];d.todos.push(item);if(item.client){d.clients=d.clients||[];if(!d.clients.includes(item.client))d.clients.push(item.client);}},"新增："+item.title);
+    const ok=await mutate(d=>{d.todos=d.todos||[];d.todos.push(item);addTo(d,"categories",item.category,BASE_CATS);addTo(d,"people",item.assignee,BASE_WHO);if(item.client){d.clients=d.clients||[];if(!d.clients.includes(item.client))d.clients.push(item.client);}},"新增："+item.title);
     btn.disabled=false; btn.textContent="加入";
-    if(ok){$("fTitle").value="";$("fClient").value="";$("fClientSel").value="";$("clientOtherWrap").hidden=true;$("fQuick").value="";$("quickMsg").textContent="";$("addBox").open=false;toast("已加入");}
+    if(ok){$("fTitle").value="";$("fClient").value="";$("fClientSel").value="";$("clientOtherWrap").hidden=true;$("fCatNew").value="";$("fWhoNew").value="";$("catOtherWrap").hidden=true;$("whoOtherWrap").hidden=true;$("fCat").value=allCats()[0];$("fWho").value="我";$("fQuick").value="";$("quickMsg").textContent="";$("addBox").open=false;toast("已加入");}
   });
 
   function getClient(){const v=$("fClientSel").value;return v==="__other"?$("fClient").value.trim():v;}
@@ -438,11 +445,14 @@ button.stat[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0
     try{localStorage.setItem("todoCfg",JSON.stringify(cfg));}catch(err){toast("這個瀏覽器無法記住設定，關閉後需重填");}
     try{await load();$("setBox").open=false;toast("已連線");}catch(err){toast(err.message);}
   });
-  if(RO){$("addBox").hidden=true;const pc=document.querySelector('.chip[data-cat="私人"]');if(pc)pc.hidden=true;document.querySelector(".note").textContent="唯讀檢視：只能查看，無法新增或修改。";}
+  if(RO){$("addBox").hidden=true;document.querySelector(".note").textContent="唯讀檢視：只能查看，無法新增或修改。";}
   $("sOwner").value=cfg.owner; $("sRepo").value=cfg.repo; $("sToken").value=cfg.token;
 
-  document.querySelectorAll(".cat-chip").forEach(b=>b.addEventListener("click",()=>{cat=b.dataset.cat;document.querySelectorAll(".cat-chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));render();}));
-  document.querySelectorAll(".who-chip").forEach(b=>b.addEventListener("click",()=>{who=b.dataset.who;document.querySelectorAll(".who-chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));render();}));
+  $("catChips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;cat=b.dataset.v;render();});
+  $("whoChips").addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;who=b.dataset.v;render();});
+  function pick(selId,inId){const v=$(selId).value;return v===OTHER?$(inId).value.trim():v;}
+  $("fCat").addEventListener("change",e=>{const o=e.target.value===OTHER;$("catOtherWrap").hidden=!o;if(o)$("fCatNew").focus();});
+  $("fWho").addEventListener("change",e=>{const o=e.target.value===OTHER;$("whoOtherWrap").hidden=!o;if(o)$("fWhoNew").focus();});
   $("clientFilter").addEventListener("change",e=>{client=e.target.value;render();});
   document.querySelectorAll("button.stat").forEach(b=>b.addEventListener("click",()=>{dueF=dueF===b.dataset.due?"":b.dataset.due;render();$("list").scrollIntoView({behavior:"smooth",block:"start"});}));
   $("refreshBtn").addEventListener("click",()=>load().catch(()=>{}));
